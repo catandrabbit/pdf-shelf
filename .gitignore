@@ -1,0 +1,23 @@
+# Generated data (users run scan.py to generate their own)
+data.js
+covers/
+
+# User overrides
+title_overrides.json
+config.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store

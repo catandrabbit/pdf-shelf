@@ -1,0 +1,18 @@
+{
+  "library_dir": "./my-books",
+  "output_dir": ".",
+  "category_suffix": "书",
+  "ignore_dirs": [
+    ".obsidian",
+    ".trash",
+    "Thumbs.db"
+  ],
+  "ignore_files": [
+    "desktop.ini",
+    "梳理台.md"
+  ],
+  "cover_size": [300, 400],
+  "title_overrides": {},
+  "app_title": "PDF Shelf",
+  "app_subtitle": "Local Digital Library"
+}

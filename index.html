@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Shelf</title>
+    <script src="data.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            background: #f5f5f0;
+            color: #333;
+            line-height: 1.6;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2e7d32 0%, #43a047 100%);
+            color: white;
+            padding: 16px 20px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+        }
+        .header h1 { font-size: 1.5rem; font-weight: 600; display: inline; }
+        .header .subtitle { opacity: 0.9; font-size: 0.85rem; margin-left: 10px; }
+        .header .settings-btn {
+            position: absolute; right: 20px; top: 50%; transform: translateY(-50%);
+            background: rgba(255,255,255,0.2); border: none; color: white;
+            font-size: 1.2rem; cursor: pointer; padding: 6px 10px; border-radius: 6px;
+        }
+        .header .settings-btn:hover { background: rgba(255,255,255,0.35); }
+
+        .main-layout { display: flex; height: calc(100vh - 60px); }
+
+        .browse-area { flex: 1; overflow-y: auto; padding-bottom: 20px; min-width: 400px; }
+
+        .reader-panel {
+            width: 0; background: white; border-left: 1px solid #ddd;
+            display: flex; flex-direction: column; transition: width 0.3s ease; overflow: hidden;
+        }
+        .reader-panel.active { flex: 1; min-width: 400px; }
+
+        .resizer {
+            width: 6px; background: #e0e0e0; cursor: col-resize; flex-shrink: 0;
+            transition: background 0.2s;
+        }
+        .resizer:hover { background: #999; }
+
+        .reader-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 16px; background: #f8f8f8; border-bottom: 1px solid #eee; flex-shrink: 0;
+        }
+        .reader-header span {
+            font-weight: 600; color: #333; white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis; max-width: 80%;
+        }
+        .reader-header button {
+            background: none; border: none; font-size: 1.2rem; cursor: pointer;
+            color: #666; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;
+        }
+        .reader-header button:hover { background: #e0e0e0; }
+
+        .reader-frame { flex: 1; border: none; width: 100%; }
+
+        .reader-placeholder {
+            flex: 1; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; color: #999; padding: 40px; text-align: center;
+        }
+        .reader-placeholder .icon { font-size: 4rem; margin-bottom: 16px; opacity: 0.3; }
+
+        .status-badge {
+            position: absolute; top: 8px; right: 8px; width: 28px; height: 28px;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 0.85rem; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            transition: transform 0.2s; z-index: 2;
+        }
+        .status-badge:hover { transform: scale(1.15); }
+        .status-badge.status-none {
+            background: rgba(255,255,255,0.25); color: white;
+            font-size: 1rem; font-weight: bold; opacity: 0.6;
+        }
+        .status-badge.status-none:hover { opacity: 1; background: rgba(255,255,255,0.4); }
+
+        .time-ago { color: #43a047; font-size: 0.7rem; font-weight: 600; }
+
+        .status-filter { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+        .status-tag {
+            padding: 4px 12px; border-radius: 16px; background: #f5f5f5;
+            color: #666; cursor: pointer; font-size: 0.8rem;
+            border: 1px solid transparent; transition: all 0.2s;
+        }
+        .status-tag:hover { background: #e8f5e9; color: #2e7d32; }
+        .status-tag.active { background: #2e7d32; color: white; border-color: #2e7d32; }
+
+        .controls {
+            background: white; padding: 16px 20px; margin: 16px 20px 0;
+            border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        }
+
+        .category-tabs {
+            display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;
+            padding-bottom: 12px; border-bottom: 1px solid #eee;
+        }
+        .cat-tab {
+            padding: 6px 14px; border-radius: 20px; background: #f0f0f0;
+            color: #555; cursor: pointer; font-size: 0.85rem;
+            transition: all 0.2s; border: none; user-select: none;
+        }
+        .cat-tab:hover { background: #e8f5e9; color: #2e7d32; }
+        .cat-tab.active {
+            background: #2e7d32; color: white;
+            box-shadow: 0 2px 6px rgba(46, 125, 50, 0.3);
+        }
+
+        .search-box {
+            width: 100%; max-width: 500px; padding: 10px 18px;
+            border: 2px solid #e0e0e0; border-radius: 25px;
+            font-size: 0.95rem; outline: none; transition: border-color 0.3s;
+        }
+        .search-box:focus { border-color: #43a047; }
+
+        .breadcrumb { font-size: 0.85rem; color: #666; margin-top: 12px; }
+        .breadcrumb a {
+            color: #43a047; text-decoration: none; cursor: pointer;
+            padding: 2px 6px; border-radius: 4px; transition: background 0.2s;
+        }
+        .breadcrumb a:hover { background: #e8f5e9; text-decoration: underline; }
+        .breadcrumb .sep { color: #ccc; margin: 0 4px; }
+        .breadcrumb .current { color: #333; font-weight: 600; }
+
+        .stats { text-align: center; padding: 8px; color: #666; font-size: 0.85rem; }
+        .stats strong { color: #2e7d32; }
+
+        .books-container { padding: 0 20px 20px; }
+        .books-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 20px; }
+
+        .book-card {
+            background: white; border-radius: 12px; overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08); transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer; position: relative;
+        }
+        .book-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+
+        .book-cover {
+            height: 200px; display: flex; align-items: center; justify-content: center;
+            position: relative; overflow: hidden;
+        }
+        .book-cover-letter {
+            font-size: 4.5rem; font-weight: 700; color: white;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 1; line-height: 1;
+        }
+
+        .book-info { padding: 12px 14px; }
+        .book-title {
+            font-size: 0.9rem; font-weight: 600; color: #222; margin-bottom: 4px;
+            line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical; overflow: hidden; min-height: 2.5em;
+        }
+        .book-author {
+            font-size: 0.75rem; color: #888; margin-bottom: 6px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .book-meta {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 0.7rem; color: #aaa;
+        }
+        .book-category-tag { background: #f0f0f0; padding: 2px 6px; border-radius: 8px; font-size: 0.65rem; }
+
+        .read-btn {
+            display: block; width: calc(100% - 28px); margin: 0 14px 14px; padding: 8px;
+            background: #43a047; color: white; border: none; border-radius: 6px;
+            font-size: 0.85rem; cursor: pointer; transition: background 0.2s; text-align: center;
+        }
+        .read-btn:hover { background: #2e7d32; }
+
+        .folder-card {
+            background: white; border-radius: 12px; overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08); transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer; position: relative; border: 2px solid transparent;
+        }
+        .folder-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.12); border-color: #43a047; }
+
+        .folder-cover {
+            height: 200px; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; background: linear-gradient(135deg, #78909c 0%, #90a4ae 100%);
+            position: relative; overflow: hidden;
+        }
+        .folder-icon { font-size: 3.5rem; margin-bottom: 8px; }
+        .folder-name-overlay {
+            color: white; font-size: 1.1rem; font-weight: 600; text-align: center;
+            padding: 0 14px; text-shadow: 0 1px 4px rgba(0,0,0,0.3); word-break: break-all;
+            display: -webkit-box; -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical; overflow: hidden;
+        }
+
+        .folder-info { padding: 12px 14px; }
+        .folder-count { font-size: 0.8rem; color: #666; text-align: center; }
+        .folder-count strong { color: #43a047; }
+
+        .open-folder-btn {
+            display: block; width: calc(100% - 28px); margin: 0 14px 14px; padding: 8px;
+            background: #78909c; color: white; border: none; border-radius: 6px;
+            font-size: 0.85rem; cursor: pointer; transition: background 0.2s; text-align: center;
+        }
+        .open-folder-btn:hover { background: #546e7a; }
+
+        .empty-state { text-align: center; padding: 60px 20px; color: #999; }
+        .empty-state svg { width: 60px; height: 60px; margin-bottom: 16px; opacity: 0.3; }
+
+        .loading { text-align: center; padding: 40px; color: #999; }
+        .spinner {
+            display: inline-block; width: 36px; height: 36px;
+            border: 3px solid #e0e0e0; border-top-color: #43a047;
+            border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .browse-area::-webkit-scrollbar { width: 8px; }
+        .browse-area::-webkit-scrollbar-track { background: #f0f0f0; }
+        .browse-area::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+        .browse-area::-webkit-scrollbar-thumb:hover { background: #aaa; }
+
+        /* Settings Modal */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+            z-index: 1000; align-items: center; justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: white; border-radius: 16px; padding: 28px;
+            width: 90%; max-width: 480px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .modal h2 { font-size: 1.2rem; margin-bottom: 20px; color: #333; }
+        .modal label { display: block; font-size: 0.85rem; color: #555; margin-bottom: 4px; font-weight: 600; }
+        .modal input[type="text"] {
+            width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px;
+            font-size: 0.9rem; margin-bottom: 16px; outline: none;
+        }
+        .modal input[type="text"]:focus { border-color: #43a047; }
+        .modal .btn-row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
+        .modal button {
+            padding: 8px 20px; border-radius: 8px; font-size: 0.9rem;
+            cursor: pointer; border: none; transition: background 0.2s;
+        }
+        .modal .btn-save { background: #43a047; color: white; }
+        .modal .btn-save:hover { background: #2e7d32; }
+        .modal .btn-cancel { background: #f0f0f0; color: #555; }
+        .modal .btn-cancel:hover { background: #e0e0e0; }
+        .modal .hint { font-size: 0.75rem; color: #999; margin-top: -12px; margin-bottom: 16px; }
+    </style>
+</head>
+<body>
+    <header class="header" style="position:relative;">
+        <h1 id="appTitle">PDF Shelf</h1>
+        <span class="subtitle" id="appSubtitle">Local Digital Library</span>
+        <button class="settings-btn" onclick="openSettings()" title="Settings">Settings</button>
+    </header>
+
+    <div class="main-layout" id="mainLayout">
+        <div class="browse-area" id="browseArea">
+            <div class="controls">
+                <div class="category-tabs" id="categoryTabs"></div>
+                <input type="text" class="search-box" id="searchInput" placeholder="Search title, author..." oninput="handleSearch()">
+                <div class="status-filter" id="statusFilter"></div>
+                <div class="breadcrumb" id="breadcrumb">
+                    <a onclick="navigateTo('')">Home</a>
+                </div>
+            </div>
+            <div class="stats" id="stats"></div>
+            <div class="books-container">
+                <div id="booksList">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <div>Loading book data...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="resizer" id="resizer"></div>
+        <div class="reader-panel" id="readerPanel">
+            <div class="reader-header">
+                <span id="readerTitle">Select a book to read</span>
+                <div>
+                    <button onclick="openInSystem()" title="Open in system PDF reader">Open</button>
+                    <button onclick="closeReader()" title="Close">x</button>
+                </div>
+            </div>
+            <div class="reader-placeholder" id="readerPlaceholder">
+                <div class="icon">PDF</div>
+                <div>Click "Read" on a book to preview it here</div>
+            </div>
+            <iframe class="reader-frame" id="readerFrame" style="display:none;"></iframe>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal">
+            <h2>Settings</h2>
+            <label for="settingTitle">Library Title</label>
+            <input type="text" id="settingTitle" placeholder="PDF Shelf">
+            <label for="settingSubtitle">Subtitle</label>
+            <input type="text" id="settingSubtitle" placeholder="Local Digital Library">
+            <div class="btn-row">
+                <button class="btn-cancel" onclick="closeSettings()">Cancel</button>
+                <button class="btn-save" onclick="saveSettings()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== Global State ====================
+        let allBooks = [];
+        let categories = [];
+        let currentPath = '';
+        let searchQuery = '';
+        let currentBookRelPath = '';
+        let currentStatusFilter = 'all';
+
+        const LS_HISTORY = 'pdfshelf_history';
+        const LS_STATUS = 'pdfshelf_status';
+        const LS_TITLE = 'pdfshelf_title';
+        const LS_SUBTITLE = 'pdfshelf_subtitle';
+
+        const STATUS_LABELS = {
+            'want': { label: 'Want to Read', icon: 'W', color: '#ff9800' },
+            'reading': { label: 'Reading', icon: 'R', color: '#2196f3' },
+            'finished': { label: 'Finished', icon: 'F', color: '#4caf50' },
+            'favorite': { label: 'Favorite', icon: '*', color: '#ff5722' }
+        };
+
+        // Default category colors - users can customize
+        const CATEGORY_COLORS = {
+            'History': ['#c62828', '#e53935'],
+            'Math': ['#1565c0', '#1976d2'],
+            'Physics': ['#6a1b9a', '#8e24aa'],
+            'Chemistry': ['#2e7d32', '#43a047'],
+            'Biology': ['#00695c', '#00897b'],
+            'Geography': ['#0277bd', '#0288d1'],
+            'Finance': ['#ef6c00', '#f57c00'],
+            'CS': ['#283593', '#3949ab'],
+            'Language': ['#ad1457', '#c2185b'],
+            'Art': ['#6d4c41', '#795548'],
+        };
+        const DEFAULT_COLOR = ['#455a64', '#546e7a'];
+
+        // ==================== LocalStorage Utils ====================
+        function getHistory() {
+            try { return JSON.parse(localStorage.getItem(LS_HISTORY) || '[]'); }
+            catch { return []; }
+        }
+        function saveHistory(history) {
+            localStorage.setItem(LS_HISTORY, JSON.stringify(history.slice(0, 20)));
+        }
+        function addToHistory(book) {
+            let history = getHistory();
+            history = history.filter(h => h.id !== book.id);
+            history.unshift({ id: book.id, title: book.title, relPath: book.relPath, lastRead: new Date().toISOString() });
+            saveHistory(history);
+        }
+        function getBookStatus(bookId) {
+            try { const s = JSON.parse(localStorage.getItem(LS_STATUS) || '{}'); return s[bookId] || ''; }
+            catch { return ''; }
+        }
+        function setBookStatus(bookId, status) {
+            const s = JSON.parse(localStorage.getItem(LS_STATUS) || '{}');
+            if (status) s[bookId] = status; else delete s[bookId];
+            localStorage.setItem(LS_STATUS, JSON.stringify(s));
+        }
+        function toggleBookStatus(bookId, event) {
+            if (event) event.stopPropagation();
+            const current = getBookStatus(bookId);
+            const order = ['', 'want', 'reading', 'finished', 'favorite'];
+            setBookStatus(bookId, order[(order.indexOf(current) + 1) % order.length]);
+            renderView();
+            return false;
+        }
+        function formatTimeAgo(isoString) {
+            if (!isoString) return '';
+            const diff = (new Date() - new Date(isoString)) / 1000;
+            if (diff < 60) return 'just now';
+            if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+            if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+            if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
+            return new Date(isoString).toLocaleDateString();
+        }
+
+        // ==================== Init ====================
+        function init() {
+            if (typeof LIBRARY_DATA === 'undefined') {
+                document.getElementById('booksList').innerHTML = '<div class="empty-state"><p>No book data found</p><p style="margin-top:10px;font-size:0.9rem;">Run <code>python scan.py /path/to/library</code> first</p></div>';
+                return;
+            }
+
+            allBooks = LIBRARY_DATA.books || [];
+            categories = LIBRARY_DATA.categories || [];
+
+            // Apply title from data or user override
+            const savedTitle = localStorage.getItem(LS_TITLE);
+            const savedSubtitle = localStorage.getItem(LS_SUBTITLE);
+            document.getElementById('appTitle').textContent = savedTitle || LIBRARY_DATA.appTitle || 'PDF Shelf';
+            document.getElementById('appSubtitle').textContent = savedSubtitle || LIBRARY_DATA.appSubtitle || 'Local Digital Library';
+            document.title = document.getElementById('appTitle').textContent;
+
+            renderCategoryTabs();
+            renderStatusFilter();
+            renderView();
+            updateStats();
+            updateBreadcrumb();
+        }
+
+        // ==================== Category Tabs ====================
+        function renderCategoryTabs() {
+            const container = document.getElementById('categoryTabs');
+            const currentCategory = currentPath ? currentPath.split('/')[0] : '';
+            const isRecent = currentPath === '__recent__';
+            let html = `<button class="cat-tab ${currentCategory === '' && !isRecent ? 'active' : ''}" onclick="navigateTo('')">Home</button>`;
+            html += `<button class="cat-tab ${isRecent ? 'active' : ''}" onclick="navigateTo('__recent__')">Recent</button>`;
+            categories.forEach(cat => {
+                const isActive = cat === currentCategory && !isRecent;
+                html += `<button class="cat-tab ${isActive ? 'active' : ''}" onclick="navigateTo('${escapeJs(cat)}')">${escapeHtml(cat)}</button>`;
+            });
+            container.innerHTML = html;
+        }
+
+        // ==================== Navigation ====================
+        function navigateTo(path) {
+            currentPath = path;
+            currentStatusFilter = 'all';
+            searchQuery = '';
+            document.getElementById('searchInput').value = '';
+            renderCategoryTabs();
+            renderStatusFilter();
+            renderView();
+            updateStats();
+            updateBreadcrumb();
+        }
+
+        // ==================== Get Current View Items ====================
+        function getCurrentViewItems() {
+            if (searchQuery) {
+                const matched = allBooks.filter(book => {
+                    const searchIn = (book.title + ' ' + book.author + ' ' + book.folderPath).toLowerCase();
+                    return searchIn.includes(searchQuery.toLowerCase());
+                });
+                return { folders: [], books: applyStatusFilter(matched) };
+            }
+            if (currentPath === '__recent__') {
+                const history = getHistory();
+                const recentBooks = history.map(h => {
+                    const book = allBooks.find(b => b.id === h.id);
+                    return book ? { ...book, _lastRead: h.lastRead } : null;
+                }).filter(Boolean);
+                return { folders: [], books: applyStatusFilter(recentBooks) };
+            }
+            if (currentPath === '') {
+                const folders = categories.map(cat => ({
+                    name: cat,
+                    bookCount: allBooks.filter(b => b.folderPath === cat || b.folderPath.startsWith(cat + '/')).length
+                }));
+                return { folders, books: [] };
+            }
+            const subFolders = new Map();
+            const booksInFolder = [];
+            allBooks.forEach(book => {
+                if (book.folderPath === currentPath) {
+                    booksInFolder.push(book);
+                } else if (book.folderPath.startsWith(currentPath + '/')) {
+                    const relative = book.folderPath.substring(currentPath.length + 1);
+                    const nextPart = relative.split('/')[0];
+                    if (nextPart) subFolders.set(nextPart, (subFolders.get(nextPart) || 0) + 1);
+                }
+            });
+            const folders = Array.from(subFolders.entries())
+                .map(([name, count]) => ({ name, bookCount: count }))
+                .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+            return { folders, books: applyStatusFilter(booksInFolder) };
+        }
+
+        function applyStatusFilter(books) {
+            if (currentStatusFilter === 'all') return books;
+            return books.filter(book => getBookStatus(book.id) === currentStatusFilter);
+        }
+
+        // ==================== Render ====================
+        function renderView() {
+            const container = document.getElementById('booksList');
+            const { folders, books } = getCurrentViewItems();
+
+            if (folders.length === 0 && books.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>' + (searchQuery ? 'No matching books found' : 'This folder is empty') + '</p></div>';
+                return;
+            }
+
+            const html = ['<div class="books-grid">'];
+
+            folders.forEach(folder => {
+                const folderPath = currentPath ? currentPath + '/' + folder.name : folder.name;
+                html.push(`
+                    <div class="folder-card" onclick="navigateTo('${escapeJs(folderPath)}')">
+                        <div class="folder-cover">
+                            <div class="folder-icon">Dir</div>
+                            <div class="folder-name-overlay">${escapeHtml(folder.name)}</div>
+                        </div>
+                        <div class="folder-info">
+                            <div class="folder-count"><strong>${folder.bookCount}</strong> books</div>
+                        </div>
+                        <button class="open-folder-btn" onclick="event.stopPropagation(); navigateTo('${escapeJs(folderPath)}')">Open</button>
+                    </div>
+                `);
+            });
+
+            books.forEach(book => {
+                const category = book.folderPath.split('/')[0];
+                const colors = CATEGORY_COLORS[category] || DEFAULT_COLOR;
+                const gradient = `linear-gradient(135deg, ${colors[0]} 0%, ${colors[1]} 100%)`;
+
+                let coverHtml;
+                if (book.cover && book.hasCover) {
+                    coverHtml = `<img src="${escapeHtml(book.cover)}" alt="${escapeHtml(book.title)}" style="width:100%;height:100%;object-fit:cover;">`;
+                } else {
+                    coverHtml = `<div class="book-cover-letter">${escapeHtml(getFirstChar(book.title))}</div>`;
+                }
+
+                const status = getBookStatus(book.id);
+                const statusInfo = STATUS_LABELS[status];
+                const statusBadge = statusInfo
+                    ? `<div class="status-badge" style="background:${statusInfo.color}" onclick="toggleBookStatus('${escapeJs(book.id)}', event)" title="${statusInfo.label}">${statusInfo.icon}</div>`
+                    : `<div class="status-badge status-none" onclick="toggleBookStatus('${escapeJs(book.id)}', event)" title="Set status">+</div>`;
+
+                const timeAgo = book._lastRead ? `<span class="time-ago">${formatTimeAgo(book._lastRead)}</span>` : '';
+
+                html.push(`
+                    <div class="book-card" onclick="openBook('${escapeJs(book.relPath)}', '${escapeJs(book.title)}')">
+                        <div class="book-cover" style="background: ${gradient};">
+                            ${coverHtml}
+                            ${statusBadge}
+                        </div>
+                        <div class="book-info">
+                            <div class="book-title">${escapeHtml(book.title)}</div>
+                            <div class="book-author">${book.author ? escapeHtml(book.author) : 'Unknown author'}</div>
+                            <div class="book-meta">
+                                <span class="book-category-tag">${escapeHtml(book.subcategory || category)}</span>
+                                <span>${book.sizeStr}</span>
+                                ${timeAgo}
+                            </div>
+                        </div>
+                        <button class="read-btn" onclick="event.stopPropagation(); openBook('${escapeJs(book.relPath)}', '${escapeJs(book.title)}')">Read</button>
+                    </div>
+                `);
+            });
+
+            html.push('</div>');
+            container.innerHTML = html.join('');
+        }
+
+        // ==================== Reader ====================
+        function openBook(relPath, title) {
+            const panel = document.getElementById('readerPanel');
+            const frame = document.getElementById('readerFrame');
+            const placeholder = document.getElementById('readerPlaceholder');
+            const titleEl = document.getElementById('readerTitle');
+
+            currentBookRelPath = relPath;
+            // Try to open via file:// - works for local viewing
+            const fileUrl = 'file:///' + relPath.replace(/\//g, '/');
+
+            frame.src = fileUrl;
+            frame.style.display = 'block';
+            placeholder.style.display = 'none';
+            titleEl.textContent = title || 'Reading...';
+
+            panel.classList.add('active');
+
+            const book = allBooks.find(b => b.relPath === relPath);
+            if (book) addToHistory(book);
+        }
+
+        function openInSystem() {
+            if (!currentBookRelPath) return;
+            // Copy a generic open command to clipboard
+            const cmd = 'start "" "' + currentBookRelPath + '"';
+            navigator.clipboard.writeText(cmd).then(() => {
+                const btn = document.querySelector('.reader-header button[title="Open in system PDF reader"]');
+                const original = btn.textContent;
+                btn.textContent = 'Copied!';
+                setTimeout(() => { btn.textContent = original; }, 1500);
+            }).catch(() => {
+                alert('Copy failed. File path: ' + currentBookRelPath);
+            });
+        }
+
+        function closeReader() {
+            const panel = document.getElementById('readerPanel');
+            const frame = document.getElementById('readerFrame');
+            const placeholder = document.getElementById('readerPlaceholder');
+            const titleEl = document.getElementById('readerTitle');
+            currentBookRelPath = '';
+            frame.src = '';
+            frame.style.display = 'none';
+            placeholder.style.display = 'flex';
+            titleEl.textContent = 'Select a book to read';
+            panel.classList.remove('active');
+            const browseArea = document.getElementById('browseArea');
+            browseArea.style.flex = '1';
+            browseArea.style.width = '';
+        }
+
+        // ==================== Breadcrumb ====================
+        function updateBreadcrumb() {
+            const breadcrumb = document.getElementById('breadcrumb');
+            if (currentPath === '') {
+                breadcrumb.innerHTML = '<a onclick="navigateTo(\'\')">Home</a>';
+                return;
+            }
+            if (currentPath === '__recent__') {
+                breadcrumb.innerHTML = '<a onclick="navigateTo(\'\')">Home</a><span class="sep">/</span><span class="current">Recent</span>';
+                return;
+            }
+            const parts = currentPath.split('/');
+            let html = '<a onclick="navigateTo(\'\')">Home</a>';
+            let accumulated = '';
+            parts.forEach((part, i) => {
+                accumulated = accumulated ? accumulated + '/' + part : part;
+                const isLast = i === parts.length - 1;
+                html += '<span class="sep">/</span>';
+                if (isLast) {
+                    html += `<span class="current">${escapeHtml(part)}</span>`;
+                } else {
+                    html += `<a onclick="navigateTo('${escapeJs(accumulated)}')">${escapeHtml(part)}</a>`;
+                }
+            });
+            breadcrumb.innerHTML = html;
+        }
+
+        // ==================== Status Filter ====================
+        function renderStatusFilter() {
+            const container = document.getElementById('statusFilter');
+            if (!container) return;
+            if (currentPath === '' && !searchQuery) { container.innerHTML = ''; return; }
+            const statuses = [
+                { key: 'all', label: 'All' },
+                { key: 'want', label: 'Want' },
+                { key: 'reading', label: 'Reading' },
+                { key: 'finished', label: 'Finished' },
+                { key: 'favorite', label: 'Favorite' }
+            ];
+            let html = '';
+            statuses.forEach(s => {
+                html += `<button class="status-tag ${currentStatusFilter === s.key ? 'active' : ''}" onclick="filterByStatus('${s.key}')">${s.label}</button>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function filterByStatus(status) {
+            currentStatusFilter = status;
+            renderStatusFilter();
+            renderView();
+            updateStats();
+        }
+
+        // ==================== Stats ====================
+        function updateStats() {
+            const { folders, books } = getCurrentViewItems();
+            const statsEl = document.getElementById('stats');
+            let statusText = '';
+            if (currentStatusFilter !== 'all') {
+                const s = STATUS_LABELS[currentStatusFilter];
+                statusText = s ? ` [${s.label}]` : '';
+            }
+            if (searchQuery) {
+                statsEl.innerHTML = `Search "${escapeHtml(searchQuery)}"${statusText} - <strong>${books.length}</strong> results`;
+            } else if (currentPath === '') {
+                statsEl.innerHTML = `<strong>${categories.length}</strong> categories, <strong>${allBooks.length}</strong> books`;
+            } else if (currentPath === '__recent__') {
+                statsEl.innerHTML = `<strong>Recent</strong>${statusText} - <strong>${books.length}</strong> books`;
+            } else {
+                const partName = currentPath.split('/').pop();
+                statsEl.innerHTML = `<strong>${escapeHtml(partName)}</strong>${statusText} - <strong>${folders.length}</strong> folders, <strong>${books.length}</strong> books`;
+            }
+        }
+
+        // ==================== Search ====================
+        function handleSearch() {
+            searchQuery = document.getElementById('searchInput').value.trim();
+            renderStatusFilter();
+            renderView();
+            updateStats();
+        }
+
+        // ==================== Settings ====================
+        function openSettings() {
+            document.getElementById('settingTitle').value = localStorage.getItem(LS_TITLE) || '';
+            document.getElementById('settingSubtitle').value = localStorage.getItem(LS_SUBTITLE) || '';
+            document.getElementById('settingsModal').classList.add('active');
+        }
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.remove('active');
+        }
+        function saveSettings() {
+            const title = document.getElementById('settingTitle').value.trim();
+            const subtitle = document.getElementById('settingSubtitle').value.trim();
+            if (title) localStorage.setItem(LS_TITLE, title); else localStorage.removeItem(LS_TITLE);
+            if (subtitle) localStorage.setItem(LS_SUBTITLE, subtitle); else localStorage.removeItem(LS_SUBTITLE);
+            document.getElementById('appTitle').textContent = title || (typeof LIBRARY_DATA !== 'undefined' && LIBRARY_DATA.appTitle) || 'PDF Shelf';
+            document.getElementById('appSubtitle').textContent = subtitle || (typeof LIBRARY_DATA !== 'undefined' && LIBRARY_DATA.appSubtitle) || 'Local Digital Library';
+            document.title = document.getElementById('appTitle').textContent;
+            closeSettings();
+        }
+
+        // ==================== Utils ====================
+        function getFirstChar(str) {
+            if (!str) return '?';
+            const match = str.match(/[\u4e00-\u9fa5]|[a-zA-Z]/);
+            return match ? match[0].toUpperCase() : str[0].toUpperCase();
+        }
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        function escapeJs(str) {
+            if (!str) return '';
+            return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+        }
+
+        // ==================== Resizer ====================
+        (function initResizer() {
+            const resizer = document.getElementById('resizer');
+            const browseArea = document.getElementById('browseArea');
+            const mainLayout = document.getElementById('mainLayout');
+            let isResizing = false;
+            resizer.addEventListener('mousedown', () => { isResizing = true; document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none'; });
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+                const w = e.clientX;
+                if (w >= 400 && w <= mainLayout.getBoundingClientRect().width - 400) {
+                    browseArea.style.flex = 'none';
+                    browseArea.style.width = w + 'px';
+                }
+            });
+            document.addEventListener('mouseup', () => { isResizing = false; document.body.style.cursor = ''; document.body.style.userSelect = ''; });
+        })();
+
+        // ==================== Start ====================
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
