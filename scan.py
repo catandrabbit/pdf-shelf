@@ -262,6 +262,7 @@ def scan_library(source_dir: str, config: dict) -> dict:
                     "subcategory": subcategory,
                     "folderPath": folder_path,
                     "relPath": str(rel_path).replace("\\", "/"),
+                    "absPath": str(file_path.resolve()).replace("\\", "/"),
                     "filename": file,
                     "size": size,
                     "sizeStr": format_size(size),

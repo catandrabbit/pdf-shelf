@@ -178,35 +178,42 @@
         .read-btn:hover { background: #2e7d32; }
 
         .folder-card {
-            background: white; border-radius: 12px; overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08); transition: transform 0.2s, box-shadow 0.2s;
-            cursor: pointer; position: relative; border: 2px solid transparent;
+            background: white; border-radius: 16px; overflow: hidden;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1); transition: all 0.3s ease;
+            cursor: pointer; position: relative; border: 3px solid #2e7d32;
         }
-        .folder-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.12); border-color: #43a047; }
+        .folder-card:hover { transform: translateY(-6px); box-shadow: 0 12px 32px rgba(46,125,50,0.2); }
 
         .folder-cover {
-            height: 200px; display: flex; flex-direction: column; align-items: center;
+            height: 220px; display: flex; flex-direction: column; align-items: center;
             justify-content: center; background: linear-gradient(135deg, #78909c 0%, #90a4ae 100%);
-            position: relative; overflow: hidden;
+            position: relative; overflow: hidden; padding: 20px;
         }
-        .folder-icon { font-size: 3.5rem; margin-bottom: 8px; }
+        .folder-icon-svg {
+            width: 80px; height: 80px; margin-bottom: 12px;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+        }
         .folder-name-overlay {
-            color: white; font-size: 1.1rem; font-weight: 600; text-align: center;
-            padding: 0 14px; text-shadow: 0 1px 4px rgba(0,0,0,0.3); word-break: break-all;
+            color: white; font-size: 1.3rem; font-weight: 700; text-align: center;
+            padding: 0 16px; text-shadow: 0 2px 8px rgba(0,0,0,0.4); word-break: break-all;
             display: -webkit-box; -webkit-line-clamp: 2;
             -webkit-box-orient: vertical; overflow: hidden;
         }
 
-        .folder-info { padding: 12px 14px; }
-        .folder-count { font-size: 0.8rem; color: #666; text-align: center; }
-        .folder-count strong { color: #43a047; }
+        .folder-info { padding: 16px; text-align: center; background: #f8f9fa; }
+        .folder-count { font-size: 0.9rem; color: #555; margin-bottom: 12px; }
+        .folder-count strong { color: #2e7d32; font-size: 1.1rem; }
 
         .open-folder-btn {
-            display: block; width: calc(100% - 28px); margin: 0 14px 14px; padding: 8px;
-            background: #78909c; color: white; border: none; border-radius: 6px;
-            font-size: 0.85rem; cursor: pointer; transition: background 0.2s; text-align: center;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            width: calc(100% - 32px); margin: 0 16px 16px; padding: 12px 16px;
+            background: linear-gradient(135deg, #78909c 0%, #607d8b 100%); 
+            color: white; border: none; border-radius: 10px;
+            font-size: 0.95rem; font-weight: 600; cursor: pointer; 
+            transition: all 0.2s; text-align: center;
         }
-        .open-folder-btn:hover { background: #546e7a; }
+        .open-folder-btn:hover { background: linear-gradient(135deg, #607d8b 0%, #546e7a 100%); transform: scale(1.02); }
+        .open-folder-btn svg { width: 18px; height: 18px; fill: currentColor; }
 
         .empty-state { text-align: center; padding: 60px 20px; color: #999; }
         .empty-state svg { width: 60px; height: 60px; margin-bottom: 16px; opacity: 0.3; }
@@ -318,7 +325,7 @@
         let categories = [];
         let currentPath = '';
         let searchQuery = '';
-        let currentBookRelPath = '';
+        let currentBookAbsPath = '';
         let currentStatusFilter = 'all';
 
         const LS_HISTORY = 'pdfshelf_history';
@@ -359,7 +366,7 @@
         function addToHistory(book) {
             let history = getHistory();
             history = history.filter(h => h.id !== book.id);
-            history.unshift({ id: book.id, title: book.title, relPath: book.relPath, lastRead: new Date().toISOString() });
+            history.unshift({ id: book.id, title: book.title, absPath: book.absPath, lastRead: new Date().toISOString() });
             saveHistory(history);
         }
         function getBookStatus(bookId) {
@@ -503,13 +510,19 @@
                 html.push(`
                     <div class="folder-card" onclick="navigateTo('${escapeJs(folderPath)}')">
                         <div class="folder-cover">
-                            <div class="folder-icon">Dir</div>
+                            <svg class="folder-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" fill="#FFC107"/>
+                                <path d="M20 6H10l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z" fill="#FFCA28"/>
+                            </svg>
                             <div class="folder-name-overlay">${escapeHtml(folder.name)}</div>
                         </div>
                         <div class="folder-info">
                             <div class="folder-count"><strong>${folder.bookCount}</strong> books</div>
                         </div>
-                        <button class="open-folder-btn" onclick="event.stopPropagation(); navigateTo('${escapeJs(folderPath)}')">Open</button>
+                        <button class="open-folder-btn" onclick="event.stopPropagation(); navigateTo('${escapeJs(folderPath)}')">
+                            <svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                            Open
+                        </button>
                     </div>
                 `);
             });
@@ -535,7 +548,7 @@
                 const timeAgo = book._lastRead ? `<span class="time-ago">${formatTimeAgo(book._lastRead)}</span>` : '';
 
                 html.push(`
-                    <div class="book-card" onclick="openBook('${escapeJs(book.relPath)}', '${escapeJs(book.title)}')">
+                    <div class="book-card" onclick="openBook('${escapeJs(book.absPath)}', '${escapeJs(book.title)}')">
                         <div class="book-cover" style="background: ${gradient};">
                             ${coverHtml}
                             ${statusBadge}
@@ -549,7 +562,7 @@
                                 ${timeAgo}
                             </div>
                         </div>
-                        <button class="read-btn" onclick="event.stopPropagation(); openBook('${escapeJs(book.relPath)}', '${escapeJs(book.title)}')">Read</button>
+                        <button class="read-btn" onclick="event.stopPropagation(); openBook('${escapeJs(book.absPath)}', '${escapeJs(book.title)}')">Read</button>
                     </div>
                 `);
             });
@@ -559,15 +572,26 @@
         }
 
         // ==================== Reader ====================
-        function openBook(relPath, title) {
+        function openBook(absPath, title) {
             const panel = document.getElementById('readerPanel');
             const frame = document.getElementById('readerFrame');
             const placeholder = document.getElementById('readerPlaceholder');
             const titleEl = document.getElementById('readerTitle');
 
-            currentBookRelPath = relPath;
-            // Try to open via file:// - works for local viewing
-            const fileUrl = 'file:///' + relPath.replace(/\//g, '/');
+            currentBookAbsPath = absPath;
+            
+            // Convert absolute path to file:// URL
+            let fileUrl;
+            if (absPath.match(/^[A-Za-z]:/)) {
+                // Windows absolute path (C:/...)
+                fileUrl = 'file:///' + absPath;
+            } else if (absPath.startsWith('/')) {
+                // Unix absolute path
+                fileUrl = 'file://' + absPath;
+            } else {
+                // Relative path - use as-is
+                fileUrl = absPath;
+            }
 
             frame.src = fileUrl;
             frame.style.display = 'block';
@@ -576,21 +600,20 @@
 
             panel.classList.add('active');
 
-            const book = allBooks.find(b => b.relPath === relPath);
+            const book = allBooks.find(b => b.absPath === absPath);
             if (book) addToHistory(book);
         }
 
         function openInSystem() {
-            if (!currentBookRelPath) return;
-            // Copy a generic open command to clipboard
-            const cmd = 'start "" "' + currentBookRelPath + '"';
+            if (!currentBookAbsPath) return;
+            const cmd = 'start "" "' + currentBookAbsPath + '"';
             navigator.clipboard.writeText(cmd).then(() => {
                 const btn = document.querySelector('.reader-header button[title="Open in system PDF reader"]');
                 const original = btn.textContent;
                 btn.textContent = 'Copied!';
                 setTimeout(() => { btn.textContent = original; }, 1500);
             }).catch(() => {
-                alert('Copy failed. File path: ' + currentBookRelPath);
+                alert('Copy failed. File path: ' + currentBookAbsPath);
             });
         }
 
@@ -599,7 +622,7 @@
             const frame = document.getElementById('readerFrame');
             const placeholder = document.getElementById('readerPlaceholder');
             const titleEl = document.getElementById('readerTitle');
-            currentBookRelPath = '';
+            currentBookAbsPath = '';
             frame.src = '';
             frame.style.display = 'none';
             placeholder.style.display = 'flex';
