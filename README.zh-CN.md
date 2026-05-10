@@ -6,6 +6,18 @@
 
 ![PDF Shelf](https://img.shields.io/badge/status-stable-green) ![License](https://img.shields.io/badge/license-MIT-blue) ![Python](https://img.shields.io/badge/python-3.8+-yellow)
 
+## 截图预览
+
+<div align="center">
+
+![PDF Shelf 效果图](https://github.com/catandrabbit/pdf-shelf/blob/main/screenshot.png?raw=true)
+
+*左侧浏览文件夹和书籍，右侧直接预览PDF内容*
+
+</div>
+
+> **提示**：如果您的实际效果与截图有差异，可以使用 AI Agent（如 Claude、Cursor、Copilot 等）对 `index.html` 进行优化调整，以达到更理想的视觉效果。
+
 ## 功能特性
 
 - **零框架依赖** — 单 HTML 文件，无需构建，支持 `file://` 协议直接打开
